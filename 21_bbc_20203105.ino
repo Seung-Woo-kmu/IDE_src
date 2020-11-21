@@ -56,20 +56,20 @@ void loop() {
   if(dist_cali > 255) {
     duty_curr -= duty_chg_per_interval;
     if (duty_curr >= _DUTY_MIN){
-      myservo.writeMicroseconds(duty_curr);
     }
     else{
       duty_curr = _DUTY_MIN;
     }
+    myservo.writeMicroseconds(duty_curr);
   }
   else {
     duty_curr += duty_chg_per_interval;
     if (duty_curr <= _DUTY_MAX){
-      myservo.writeMicroseconds(duty_curr);
     }
     else{
       duty_curr = _DUTY_MAX;
     }
+    myservo.writeMicroseconds(duty_curr);
   }
 
 
