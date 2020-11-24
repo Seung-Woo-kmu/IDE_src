@@ -1,5 +1,4 @@
-#include <Servo.h> //[3104] Servo header File include
-
+#include <Servo.h>
 /////////////////////////////
 // Configurable parameters //
 /////////////////////////////
