@@ -35,7 +35,7 @@
 #define _INTERVAL_SERIAL 100 
 
 // PID parameters
-#define _KP 0.1
+#define _KP 0.05
 #define a 70
 #define b 300
 //////////////////////
@@ -161,17 +161,18 @@ if(event_dist) {
   
   if(event_serial) {
     event_serial = false;
-    Serial.print("Min:0,Low:200,dist:");
+// 아래 출력문은 수정없이 모두 그대로 사용하기 바랍니다.
+    Serial.print("dist_ir:");
     Serial.print(dist_raw);
     Serial.print(",pterm:");
-    Serial.print(pterm);
+    Serial.print(map(pterm,-1000,1000,510,610));
     Serial.print(",duty_target:");
-    Serial.print(duty_target);
+    Serial.print(map(duty_target,1000,2000,410,510));
     Serial.print(",duty_curr:");
-    Serial.print(duty_curr);
-    Serial.println(",High:310,Max:2000");
+    Serial.print(map(duty_curr,1000,2000,410,510));
+    Serial.println(",Min:100,Low:200,dist_target:255,High:310,Max:410");
   }
-}
+} 
 
 float ir_distance(void){ // return value unit: mm
   float value;
