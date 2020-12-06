@@ -2,7 +2,6 @@
 /////////////////////////////
 // Configurable parameters //
 /////////////////////////////
-
 // Arduino pin assignment
 #define PIN_LED 9 //9번핀 LED 연결  
 #define PIN_SERVO 10 //10번핀 서보 연결
@@ -16,7 +15,7 @@
 #define _DIST_MIN 100 //거리 최소값
 #define _DIST_MAX 410 //거리 최대값
 // Distance sensor
-#define _DIST_ALPHA 0.5  //EMA 필터링을 위한 alpha 값
+#define _DIST_ALPHA 0.35  //EMA 필터링을 위한 alpha 값
                // 0~1 사이의 값
 
 // Servo range
@@ -26,7 +25,7 @@
 
 
 // Servo speed control
-#define _SERVO_ANGLE 30.0  
+#define _SERVO_ANGLE 4.9 
 #define _SERVO_SPEED 600.0
 
 // Event periods
@@ -35,7 +34,8 @@
 #define _INTERVAL_SERIAL 100 
 
 // PID parameters
-#define _KP 0.05
+#define _KP 1.5
+#define _KD 71
 #define a 70
 #define b 300
 //////////////////////
@@ -48,11 +48,11 @@ Servo myservo;
 // Distance sensor
 float dist_target; // location to send the ball
 float dist_raw, dist_ema; //측정된 값과 ema 필터를 적용한 값
-// sensor values
-float x[SEQ_SIZE] = {107.0, 173.0, 222.0, 273.0, 325.0, 380.0, 435.0, 460.0};
 
-// real values
-float y[SEQ_SIZE] = {100.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 410.0};
+
+// global variables
+const float coE[] = {0.0000041, 0.0003611, 0.4022227, 58.5956763};
+
 
 
 // Event periods
@@ -124,12 +124,13 @@ if(event_dist) {
 
   // PID control logic
     error_curr = dist_ema - _DIST_TARGET;
-    pterm = error_curr;
+    pterm = _KP * error_curr;
     iterm = 0;
-    dterm = 0;
-    control = - _KP * pterm + iterm + dterm;
-    duty_target = _DUTY_NEU + control * ((control>0)?(_DUTY_MIN - _DUTY_NEU):(_DUTY_NEU - _DUTY_MAX))  * _SERVO_ANGLE / 180;
-
+    dterm = _KD * (error_curr - error_prev);
+    control = - dterm - pterm;
+    duty_target = _DUTY_NEU + control;
+    if (duty_target < _DUTY_MAX) duty_target = _DUTY_MAX;
+    if (duty_target > _DUTY_MIN) duty_target = _DUTY_MIN;
 
   // keep duty_target value within the range of [_DUTY_MIN, _DUTY_MAX]
     if(duty_target > _DUTY_MIN){
@@ -153,6 +154,7 @@ if(event_dist) {
     }
     // update servo position
      myservo.writeMicroseconds(duty_curr);
+     error_prev = error_curr;
   }   
 
 
@@ -163,9 +165,11 @@ if(event_dist) {
     event_serial = false;
 // 아래 출력문은 수정없이 모두 그대로 사용하기 바랍니다.
     Serial.print("dist_ir:");
-    Serial.print(dist_raw);
+    Serial.print(dist_ema);
     Serial.print(",pterm:");
     Serial.print(map(pterm,-1000,1000,510,610));
+    Serial.print(",dterm:");
+    Serial.print(map(dterm,-1000,1000,510,610));
     Serial.print(",duty_target:");
     Serial.print(map(duty_target,1000,2000,410,510));
     Serial.print(",duty_curr:");
@@ -183,36 +187,7 @@ float ir_distance(void){ // return value unit: mm
 //[3099]
 
 float ir_distance_filtered(void){ // return value unit: mm
-  dist_raw = ir_distance();
+   float x = ir_distance();
+  dist_raw = coE[0] * pow(x, 3) + coE[1] * pow(x, 2) + coE[2] * x + coE[3];
   return _DIST_ALPHA * dist_raw + (1 - _DIST_ALPHA) * dist_ema;
-}
-float ir_distance_sequence(void){
-  float value, real_value;
-  float volt = float(analogRead(PIN_IR));
-  value = ((6762.0/(volt-9.0))-4.0) * 10.0;
- 
-  int s = 0, e = SEQ_SIZE - 1, m;
-  // binary search
-  while(s <= e){
-    m = (s + e) / 2;
-    if(value < x[m]) {
-      e = m - 1;  // [3108] s = m + 1; 과 e = m - 1;의 위치 수정
-    }
-    else if(value > x[m+1]){
-      s = m + 1;
-    }
-    else{
-      break;
-    }
-  } 
-   if(s > e){
-    if(value > 2000.0 || value < -2000.0) real_value = _DIST_TARGET;
-    else if(s == 0) real_value = _DIST_MIN; 
-    else real_value = _DIST_MAX;
-  }
-
-
-  // calculate real values
-  real_value = (y[m+1] - y[m]) / (x[m+1] - x[m] ) * (value - x[m]) + y[m];
-  return real_value;
 }
