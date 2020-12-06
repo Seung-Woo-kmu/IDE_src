@@ -6,6 +6,12 @@
 #define PIN_LED 9 //9번핀 LED 연결  
 #define PIN_SERVO 10 //10번핀 서보 연결
 #define PIN_IR A0 //적외선 거리센서 PIN - Analog0 정의 
+#define _INTERVAL_DIST 30  // DELAY_MICROS * samples_num^2 의 값이 최종 거리측정 인터벌임. 넉넉하게 30ms 잡음.
+#define DELAY_MICROS  1500 // 필터에 넣을 샘플값을 측정하는 딜레이(고정값!)
+#define EMA_ALPHA 0.35     // EMA 필터 값을 결정하는 ALPHA 값. 작성자가 생각하는 최적값임.
+float ema_dist=0;            // EMA 필터에 사용할 변수
+float filtered_dist;       // 최종 측정된 거리값을 넣을 변수. loop()안에 filtered_dist = filtered_ir_distance(); 형태로 사용하면 됨.
+float samples_num = 3;     // 스파이크 제거를 위한 부분필터에 샘플을 몇개 측정할 것인지. 3개로 충분함! 가능하면 수정하지 말 것.
 
 // examples for sequence calibration
 #define SEQ_SIZE 8
@@ -15,7 +21,7 @@
 #define _DIST_MIN 100 //거리 최소값
 #define _DIST_MAX 410 //거리 최대값
 // Distance sensor
-#define _DIST_ALPHA 0.35  //EMA 필터링을 위한 alpha 값
+#define _DIST_ALPHA 0.5  //EMA 필터링을 위한 alpha 값
                // 0~1 사이의 값
 
 // Servo range
@@ -29,13 +35,12 @@
 #define _SERVO_SPEED 600.0
 
 // Event periods
-#define _INTERVAL_DIST 20 //각 event 사이에 지정한 시간 간격
 #define _INTERVAL_SERVO 20
 #define _INTERVAL_SERIAL 100 
 
 // PID parameters
-#define _KP 1.5
-#define _KD 71
+#define _KP 2
+  #define _KD 93
 #define a 70
 #define b 300
 //////////////////////
@@ -120,7 +125,7 @@ if(time_curr >= last_sampling_time_serial + _INTERVAL_SERIAL ){
 if(event_dist) {
      event_dist = false;
   // get a distance reading from the distance sensor
-     dist_ema = ir_distance_filtered();
+     dist_raw = ir_distance_filtered();
 
   // PID control logic
     error_curr = dist_ema - _DIST_TARGET;
@@ -165,7 +170,7 @@ if(event_dist) {
     event_serial = false;
 // 아래 출력문은 수정없이 모두 그대로 사용하기 바랍니다.
     Serial.print("dist_ir:");
-    Serial.print(dist_ema);
+    Serial.print(dist_raw);
     Serial.print(",pterm:");
     Serial.print(map(pterm,-1000,1000,510,610));
     Serial.print(",dterm:");
@@ -184,10 +189,33 @@ float ir_distance(void){ // return value unit: mm
   value = ((6762.0/(volt-9.0))-4.0) * 10.0;
   return 300.0 / (b - a) * (value    - a) + 100;
 }
-//[3099]
+float under_noise_filter(void){ // 아래로 떨어지는 형태의 스파이크를 제거해주는 필터
+  int currReading;
+  int largestReading = 0;
+  for (int i = 0; i < samples_num; i++) {
+    currReading = ir_distance();
+    if (currReading > largestReading) { largestReading = currReading; }
+    // Delay a short time before taking another reading
+    delayMicroseconds(DELAY_MICROS);
+  }
+  return largestReading;
+}
+
+float filtered_ir_distance(void){ // 아래로 떨어지는 형태의 스파이크를 제거 후, 위로 치솟는 스파이크를 제거하고 EMA필터를 적용함.
+  // under_noise_filter를 통과한 값을 upper_nosie_filter에 넣어 최종 값이 나옴.
+  int currReading;
+  int lowestReading = 1024;
+  for (int i = 0; i < samples_num; i++) {
+    currReading = under_noise_filter();
+    if (currReading < lowestReading) { lowestReading = currReading; }
+  }
+  // eam 필터 추가
+  ema_dist = EMA_ALPHA*lowestReading + (1-EMA_ALPHA)*ema_dist;
+  return ema_dist;
+}
 
 float ir_distance_filtered(void){ // return value unit: mm
-   float x = ir_distance();
-  dist_raw = coE[0] * pow(x, 3) + coE[1] * pow(x, 2) + coE[2] * x + coE[3];
-  return _DIST_ALPHA * dist_raw + (1 - _DIST_ALPHA) * dist_ema;
+   float x = filtered_ir_distance();
+  dist_ema = coE[0] * pow(x, 3) + coE[1] * pow(x, 2) + coE[2] * x + coE[3];
+  return _DIST_ALPHA * dist_ema + (1 - _DIST_ALPHA) * dist_raw;
 }
