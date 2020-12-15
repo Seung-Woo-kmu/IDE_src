@@ -39,8 +39,9 @@ float samples_num = 3;     // 스파이크 제거를 위한 부분필터에 샘�
 #define _INTERVAL_SERIAL 100 
 
 // PID parameters
-#define _KP 2
-  #define _KD 85
+#define _KP 2 
+#define _KD 74
+#define _KI 0.005
 #define a 70
 #define b 300
 //////////////////////
@@ -51,7 +52,7 @@ float samples_num = 3;     // 스파이크 제거를 위한 부분필터에 샘�
 Servo myservo;
 
 // Distance sensor
-float dist_target; // location to send the ball
+float dist_target = 255; // location to send the ball
 float dist_raw, dist_ema; //측정된 값과 ema 필터를 적용한 값
 
 
@@ -83,7 +84,7 @@ void setup() {
 myservo.attach(PIN_SERVO); // attach servo
 pinMode(PIN_LED,OUTPUT); // initialize GPIO pins
 
-// initialize global variables
+pterm = iterm = dterm = 0;
 
 // move servo to neutral position
 myservo.writeMicroseconds(_DUTY_NEU);
@@ -130,9 +131,9 @@ if(event_dist) {
   // PID control logic
     error_curr = dist_ema - _DIST_TARGET;
     pterm = _KP * error_curr;
-    iterm = 0;
+    iterm += _KI * error_curr;
     dterm = _KD * (error_curr - error_prev);
-    control = - dterm - pterm;
+    control = - dterm - pterm - iterm;
     duty_target = _DUTY_NEU + control;
     if (duty_target < _DUTY_MAX) duty_target = _DUTY_MAX;
     if (duty_target > _DUTY_MIN) duty_target = _DUTY_MIN;
@@ -169,17 +170,21 @@ if(event_dist) {
   if(event_serial) {
     event_serial = false;
 // 아래 출력문은 수정없이 모두 그대로 사용하기 바랍니다.
-    Serial.print("dist_ir:");
-    Serial.print(dist_raw);
-    Serial.print(",pterm:");
-    Serial.print(map(pterm,-1000,1000,510,610));
-    Serial.print(",dterm:");
-    Serial.print(map(dterm,-1000,1000,510,610));
-    Serial.print(",duty_target:");
-    Serial.print(map(duty_target,1000,2000,410,510));
-    Serial.print(",duty_curr:");
-    Serial.print(map(duty_curr,1000,2000,410,510));
-    Serial.println(",Min:100,Low:200,dist_target:255,High:310,Max:410");
+Serial.print("IR:");
+Serial.print(dist_raw);
+Serial.print(",T:");
+Serial.print(dist_target);
+Serial.print(",P:");
+Serial.print(map(pterm,-1000,1000,510,610));
+Serial.print(",D:");
+Serial.print(map(dterm,-1000,1000,510,610));
+Serial.print(",I:");
+Serial.print(map(iterm,-1000,1000,510,610));
+Serial.print(",DTT:");
+Serial.print(map(duty_target,1000,2000,410,510));
+Serial.print(",DTC:");
+Serial.print(map(duty_curr,1000,2000,410,510));
+Serial.println(",-G:245,+G:265,m:0,M:800");
   }
 } 
 
