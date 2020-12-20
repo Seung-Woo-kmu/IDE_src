@@ -39,9 +39,9 @@ float samples_num = 3;     // 스파이크 제거를 위한 부분필터에 샘�
 #define _INTERVAL_SERIAL 100 
 
 // PID parameters
-#define _KP 2 
-#define _KD 74
-#define _KI 0.005
+#define _KP 2,4 
+#define _KD 85
+#define _KI 0.03
 #define a 70
 #define b 300
 //////////////////////
